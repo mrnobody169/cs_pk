@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.GroupMemberMapper">
+
+    <resultMap id="GroupMemberRM" type="com.pokertrack.model.GroupMember">
+        <result property="groupId" column="group_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="role" column="role"/>
+        <result property="joinedAt" column="joined_at"/>
+        <result property="displayName" column="display_name"/>
+        <result property="email" column="email"/>
+    </resultMap>
+
+    <select id="findRole" resultType="String">
+        SELECT role FROM group_members
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </select>
+
+    <select id="findByGroupId" resultMap="GroupMemberRM">
+        SELECT gm.group_id, gm.user_id, gm.role, gm.joined_at,
+               u.display_name, u.email
+        FROM group_members gm
+        INNER JOIN users u ON u.id = gm.user_id
+        WHERE gm.group_id = #{groupId}
+        ORDER BY gm.joined_at ASC
+    </select>
+
+    <select id="findByGroupAndUser" resultMap="GroupMemberRM">
+        SELECT gm.group_id, gm.user_id, gm.role, gm.joined_at,
+               u.display_name, u.email
+        FROM group_members gm
+        INNER JOIN users u ON u.id = gm.user_id
+        WHERE gm.group_id = #{groupId} AND gm.user_id = #{userId}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO group_members (group_id, user_id, role)
+        VALUES (#{groupId}, #{userId}, #{role})
+    </insert>
+
+    <update id="updateRole">
+        UPDATE group_members
+        SET role = #{role}
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM group_members
+        WHERE group_id = #{groupId} AND user_id = #{userId}
+    </delete>
+
+</mapper>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.AuditLogMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO audit_logs (group_id, entity_type, entity_id, action, before_json, after_json, actor_user_id)
+        VALUES (#{groupId}, #{entityType}, #{entityId}, #{action}, #{beforeJson}, #{afterJson}, #{actorUserId})
+    </insert>
+
+</mapper>

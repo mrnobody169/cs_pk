@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.DailySessionMapper">
+
+    <resultMap id="SessionRM" type="com.pokertrack.model.DailySession">
+        <id property="id" column="id"/>
+        <result property="groupId" column="group_id"/>
+        <result property="sessionDate" column="session_date"/>
+        <result property="dataLocked" column="data_locked"/>
+        <result property="lockedBy" column="locked_by"/>
+        <result property="lockedAt" column="locked_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="SessionRM">
+        SELECT id, group_id, session_date, data_locked, locked_by, locked_at, created_by, created_at
+        FROM daily_sessions WHERE id = #{id}
+    </select>
+
+    <select id="findByGroupAndDate" resultMap="SessionRM">
+        SELECT id, group_id, session_date, data_locked, locked_by, locked_at, created_by, created_at
+        FROM daily_sessions
+        WHERE group_id = #{groupId} AND session_date = #{sessionDate}
+    </select>
+
+    <select id="findByGroupIdAndDateRange" resultMap="SessionRM">
+        SELECT id, group_id, session_date, data_locked, locked_by, locked_at, created_by, created_at
+        FROM daily_sessions
+        WHERE group_id = #{groupId}
+          AND session_date &gt;= #{from}
+          AND session_date &lt;= #{to}
+        ORDER BY session_date DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO daily_sessions (group_id, session_date, created_by)
+        VALUES (#{groupId}, #{sessionDate}, #{createdBy})
+    </insert>
+
+    <update id="updateLock">
+        UPDATE daily_sessions
+        SET data_locked = #{dataLocked},
+            locked_by   = #{lockedBy},
+            locked_at   = #{lockedAt}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

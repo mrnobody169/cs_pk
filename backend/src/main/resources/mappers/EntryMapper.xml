@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.EntryMapper">
+
+    <!-- Full entry domain model ResultMap -->
+    <resultMap id="EntryRM" type="com.pokertrack.model.Entry">
+        <id property="id" column="id"/>
+        <result property="dailySessionId" column="daily_session_id"/>
+        <result property="memberUserId" column="member_user_id"/>
+        <result property="buyInTotal" column="buy_in_total"/>
+        <result property="cashOutTotal" column="cash_out_total"/>
+        <result property="profit" column="profit"/>
+        <result property="note" column="note"/>
+        <result property="settlementStatus" column="settlement_status"/>
+        <result property="settledAmount" column="settled_amount"/>
+        <result property="settlementNote" column="settlement_note"/>
+        <result property="settledBy" column="settled_by"/>
+        <result property="settledAt" column="settled_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- EntryView ResultMap: joins member display_name -->
+    <resultMap id="EntryViewRM" type="com.pokertrack.dto.response.EntryView">
+        <result property="id" column="id"/>
+        <result property="dailySessionId" column="daily_session_id"/>
+        <result property="memberUserId" column="member_user_id"/>
+        <result property="memberName" column="member_name"/>
+        <result property="buyInTotal" column="buy_in_total"/>
+        <result property="cashOutTotal" column="cash_out_total"/>
+        <result property="profit" column="profit"/>
+        <result property="note" column="note"/>
+        <result property="settlementStatus" column="settlement_status"/>
+        <result property="settledAmount" column="settled_amount"/>
+        <result property="settlementNote" column="settlement_note"/>
+        <result property="settledAt" column="settled_at"/>
+        <result property="settledByName" column="settled_by_name"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="updatedByName" column="updated_by_name"/>
+    </resultMap>
+
+    <select id="findById" resultMap="EntryRM">
+        SELECT e.id, e.daily_session_id, e.member_user_id,
+               e.buy_in_total, e.cash_out_total, e.profit, e.note,
+               e.settlement_status, e.settled_amount, e.settlement_note, e.settled_by, e.settled_at,
+               e.created_by, e.updated_by, e.created_at, e.updated_at
+        FROM entries e
+        WHERE e.id = #{id}
+    </select>
+
+    <!--
+        Key query: Returns full entry view for a session, joining:
+        - users m (member_user_id) -> memberName
+        - users u1 (updated_by) -> updatedByName
+        - users u2 (settled_by) -> settledByName
+    -->
+    <select id="findViewsBySessionId" resultMap="EntryViewRM">
+        SELECT
+            e.id,
+            e.daily_session_id,
+            e.member_user_id,
+            m.display_name  AS member_name,
+            e.buy_in_total,
+            e.cash_out_total,
+            e.profit,
+            e.note,
+            e.settlement_status,
+            e.settled_amount,
+            e.settlement_note,
+            e.settled_at,
+            u2.display_name AS settled_by_name,
+            e.updated_at,
+            u1.display_name AS updated_by_name
+        FROM entries e
+        INNER JOIN users    m  ON m.id  = e.member_user_id
+        LEFT  JOIN users    u1 ON u1.id = e.updated_by
+        LEFT  JOIN users    u2 ON u2.id = e.settled_by
+        WHERE e.daily_session_id = #{sessionId}
+        ORDER BY m.display_name ASC
+    </select>
+
+    <!-- Returns only non-PAID entries for a session -->
+    <select id="findUnpaidBySessionId" resultMap="EntryViewRM">
+        SELECT
+            e.id,
+            e.daily_session_id,
+            e.member_user_id,
+            m.display_name  AS member_name,
+            e.buy_in_total,
+            e.cash_out_total,
+            e.profit,
+            e.note,
+            e.settlement_status,
+            e.settled_amount,
+            e.settlement_note,
+            e.settled_at,
+            u2.display_name AS settled_by_name,
+            e.updated_at,
+            u1.display_name AS updated_by_name
+        FROM entries e
+        INNER JOIN users    m  ON m.id  = e.member_user_id
+        LEFT  JOIN users    u1 ON u1.id = e.updated_by
+        LEFT  JOIN users    u2 ON u2.id = e.settled_by
+        WHERE e.daily_session_id = #{sessionId}
+          AND e.settlement_status != 'PAID'
+        ORDER BY e.settlement_status ASC, m.display_name ASC
+    </select>
+
+    <select id="findBySessionAndMember" resultMap="EntryRM">
+        SELECT e.id, e.daily_session_id, e.member_user_id,
+               e.buy_in_total, e.cash_out_total, e.profit, e.note,
+               e.settlement_status, e.settled_amount, e.settlement_note, e.settled_by, e.settled_at,
+               e.created_by, e.updated_by, e.created_at, e.updated_at
+        FROM entries e
+        WHERE e.daily_session_id = #{sessionId} AND e.member_user_id = #{memberUserId}
+    </select>
+
+    <!--
+        Insert: profit is a GENERATED ALWAYS AS STORED column.
+        We must NOT include it in INSERT columns.
+    -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO entries (daily_session_id, member_user_id, buy_in_total, cash_out_total, note, created_by, updated_by)
+        VALUES (#{dailySessionId}, #{memberUserId}, #{buyInTotal}, #{cashOutTotal}, #{note}, #{createdBy}, #{createdBy})
+    </insert>
+
+    <!-- Update financial fields (only allowed when session is NOT locked) -->
+    <update id="update">
+        UPDATE entries
+        SET buy_in_total   = #{buyInTotal},
+            cash_out_total = #{cashOutTotal},
+            note           = #{note},
+            updated_by     = #{updatedBy},
+            updated_at     = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <!-- Update settlement fields (allowed even when session is locked) -->
+    <update id="updateSettlement">
+        UPDATE entries
+        SET settlement_status = #{settlementStatus},
+            settled_amount    = #{settledAmount},
+            settlement_note   = #{settlementNote},
+            settled_by        = #{settledBy},
+            settled_at        = #{settledAt},
+            updated_by        = #{updatedBy},
+            updated_at        = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM entries WHERE id = #{id}
+    </delete>
+
+</mapper>

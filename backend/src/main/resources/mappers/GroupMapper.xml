@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.GroupMapper">
+
+    <resultMap id="GroupRM" type="com.pokertrack.model.Group">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="GroupRM">
+        SELECT id, name, created_by, created_at
+        FROM groups
+        WHERE id = #{id}
+    </select>
+
+    <!-- Returns all groups the given user belongs to (as a member) -->
+    <select id="findByUserId" resultMap="GroupRM">
+        SELECT g.id, g.name, g.created_by, g.created_at
+        FROM groups g
+        INNER JOIN group_members gm ON gm.group_id = g.id
+        WHERE gm.user_id = #{userId}
+        ORDER BY g.created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO groups (name, created_by)
+        VALUES (#{name}, #{createdBy})
+    </insert>
+
+</mapper>

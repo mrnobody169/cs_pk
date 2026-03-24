@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pokertrack.mapper.ReportMapper">
+
+    <!-- Summary totals for a group in a date range -->
+    <select id="getSummary" resultType="com.pokertrack.dto.response.ReportSummaryResponse">
+        SELECT
+            COALESCE(SUM(e.buy_in_total), 0)  AS totalBuyIn,
+            COALESCE(SUM(e.cash_out_total), 0) AS totalCashOut,
+            COALESCE(SUM(e.profit), 0)         AS totalProfit,
+            COUNT(e.id)                         AS totalEntries,
+            COUNT(CASE WHEN e.settlement_status = 'UNPAID'   THEN 1 END) AS unpaidCount,
+            COUNT(CASE WHEN e.settlement_status = 'PAID'     THEN 1 END) AS paidCount,
+            COUNT(CASE WHEN e.settlement_status = 'PARTIAL'  THEN 1 END) AS partialCount,
+            COUNT(CASE WHEN e.settlement_status = 'DISPUTED' THEN 1 END) AS disputedCount
+        FROM entries e
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        WHERE ds.group_id = #{groupId}
+          AND ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+    </select>
+
+    <!-- Per-member breakdown for a date range (was per-player) -->
+    <select id="getByPlayer" resultType="com.pokertrack.dto.response.PlayerReportRow">
+        SELECT
+            u.id                                AS playerId,
+            u.display_name                      AS playerName,
+            COUNT(DISTINCT ds.session_date)     AS daysPlayed,
+            COALESCE(SUM(e.buy_in_total), 0)    AS totalBuyIn,
+            COALESCE(SUM(e.cash_out_total), 0)  AS totalCashOut,
+            COALESCE(SUM(e.profit), 0)          AS totalProfit,
+            COUNT(CASE WHEN e.settlement_status != 'PAID' THEN 1 END) AS unpaidCount
+        FROM entries e
+        INNER JOIN users          u  ON u.id  = e.member_user_id
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        WHERE ds.group_id = #{groupId}
+          AND ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        GROUP BY u.id, u.display_name
+        ORDER BY totalProfit DESC
+    </select>
+
+    <!-- Per-day breakdown for a date range -->
+    <select id="getByDay" resultType="com.pokertrack.dto.response.DayReportRow">
+        SELECT
+            ds.session_date                     AS sessionDate,
+            COUNT(e.id)                         AS entryCount,
+            COALESCE(SUM(e.buy_in_total), 0)    AS totalBuyIn,
+            COALESCE(SUM(e.cash_out_total), 0)  AS totalCashOut,
+            COALESCE(SUM(e.profit), 0)          AS totalProfit,
+            COUNT(CASE WHEN e.settlement_status != 'PAID' THEN 1 END) AS unpaidCount
+        FROM daily_sessions ds
+        LEFT JOIN entries e ON e.daily_session_id = ds.id
+        WHERE ds.group_id = #{groupId}
+          AND ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        GROUP BY ds.session_date
+        ORDER BY ds.session_date DESC
+    </select>
+
+    <!-- Dashboard: profit per member for a single group -->
+    <select id="getMemberProfitByGroup" resultType="com.pokertrack.dto.response.MemberProfitRow">
+        SELECT
+            u.id                                AS memberUserId,
+            u.display_name                      AS memberName,
+            COUNT(DISTINCT ds.session_date)     AS daysPlayed,
+            COALESCE(SUM(e.buy_in_total), 0)    AS totalBuyIn,
+            COALESCE(SUM(e.cash_out_total), 0)  AS totalCashOut,
+            COALESCE(SUM(e.profit), 0)          AS totalProfit,
+            COUNT(CASE WHEN e.settlement_status != 'PAID' THEN 1 END) AS unpaidCount
+        FROM entries e
+        INNER JOIN users          u  ON u.id  = e.member_user_id
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        WHERE ds.group_id = #{groupId}
+          AND ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        GROUP BY u.id, u.display_name
+        ORDER BY totalProfit DESC
+    </select>
+
+    <!-- Dashboard: profit per member across ALL groups user belongs to -->
+    <select id="getMemberProfitAllGroups" resultType="com.pokertrack.dto.response.MemberProfitRow">
+        SELECT
+            u.id                                AS memberUserId,
+            u.display_name                      AS memberName,
+            COUNT(DISTINCT ds.session_date)     AS daysPlayed,
+            COALESCE(SUM(e.buy_in_total), 0)    AS totalBuyIn,
+            COALESCE(SUM(e.cash_out_total), 0)  AS totalCashOut,
+            COALESCE(SUM(e.profit), 0)          AS totalProfit,
+            COUNT(CASE WHEN e.settlement_status != 'PAID' THEN 1 END) AS unpaidCount
+        FROM entries e
+        INNER JOIN users          u  ON u.id  = e.member_user_id
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        INNER JOIN group_members gm ON gm.group_id = ds.group_id AND gm.user_id = #{userId}
+        WHERE ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        GROUP BY u.id, u.display_name
+        ORDER BY totalProfit DESC
+    </select>
+
+    <!-- Transaction log: all entries for a group, ordered by date DESC -->
+    <select id="getTransactionsByGroup" resultType="com.pokertrack.dto.response.TransactionRow">
+        SELECT
+            e.id                    AS entryId,
+            ds.session_date         AS sessionDate,
+            ds.group_id             AS groupId,
+            g.name                  AS groupName,
+            e.member_user_id        AS memberUserId,
+            u.display_name          AS memberName,
+            e.buy_in_total          AS buyInTotal,
+            e.cash_out_total        AS cashOutTotal,
+            e.profit                AS profit,
+            e.settlement_status     AS settlementStatus,
+            e.note                  AS note
+        FROM entries e
+        INNER JOIN users          u  ON u.id  = e.member_user_id
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        INNER JOIN groups         g  ON g.id  = ds.group_id
+        WHERE ds.group_id = #{groupId}
+          AND ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        ORDER BY ds.session_date DESC, u.display_name ASC
+    </select>
+
+    <!-- Transaction log: all entries across ALL groups user belongs to -->
+    <select id="getTransactionsAllGroups" resultType="com.pokertrack.dto.response.TransactionRow">
+        SELECT
+            e.id                    AS entryId,
+            ds.session_date         AS sessionDate,
+            ds.group_id             AS groupId,
+            g.name                  AS groupName,
+            e.member_user_id        AS memberUserId,
+            u.display_name          AS memberName,
+            e.buy_in_total          AS buyInTotal,
+            e.cash_out_total        AS cashOutTotal,
+            e.profit                AS profit,
+            e.settlement_status     AS settlementStatus,
+            e.note                  AS note
+        FROM entries e
+        INNER JOIN users          u  ON u.id  = e.member_user_id
+        INNER JOIN daily_sessions ds ON ds.id = e.daily_session_id
+        INNER JOIN groups         g  ON g.id  = ds.group_id
+        INNER JOIN group_members gm ON gm.group_id = ds.group_id AND gm.user_id = #{userId}
+        WHERE ds.session_date &gt;= #{from}
+          AND ds.session_date &lt;= #{to}
+        ORDER BY ds.session_date DESC, u.display_name ASC
+    </select>
+
+</mapper>

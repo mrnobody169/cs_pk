@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/smartnote
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  jackson:
+    naming-strategy: com.fasterxml.jackson.databind.PropertyNamingStrategies$LowerCamelCaseStrategy
+
+mybatis:
+  mapper-locations: classpath:mappers/*.xml
+  type-aliases-package: com.pokertrack.model
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  jwt:
+    secret: "poker-track-jwt-secret-key-must-be-at-least-32-chars-long"
+    expiration-ms: 86400000  # 24 hours
+  # MEMBER role can edit any entry (not just their own) when session is unlocked
+  member-can-edit-any-entry: true
+
+logging:
+  level:
+    com.pokertrack: DEBUG
+    org.mybatis: DEBUG
