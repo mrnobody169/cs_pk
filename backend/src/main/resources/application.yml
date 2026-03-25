@@ -3,9 +3,9 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartnote
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://aws-1-ap-northeast-2.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
+    username: postgres.jbfjgfxprreylwfvixtt
+    password: ur73HEjzIMrpi1n9
     driver-class-name: org.postgresql.Driver
   jackson:
     naming-strategy: com.fasterxml.jackson.databind.PropertyNamingStrategies$LowerCamelCaseStrategy
