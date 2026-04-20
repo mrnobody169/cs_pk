@@ -1,0 +1,134 @@
+# Prompt: Build a Game Aggregator Platform with Webview Integration & Virtual Currency System
+
+## Context
+
+I own a **licensed gaming website** operating legally in the United States. I want to expand my platform by embedding a third-party game (called "Game X") into my website using a **webview/iframe**. I have a **signed contract** with Game X granting me full permission to embed and use their game. However, **Game X does not provide any API** — I can only access it through their web interface.
+
+## Business Model
+
+### Currency System
+- Users deposit real money (USD) into my platform.
+- My platform has a **virtual currency called "Gold"** with a conversion rate of **1 Gold = 100,000 VND (or equivalent USD amount)**.
+- To play Game X, users must convert their platform balance to Gold.
+- **I manage both the real money balance and Gold balance** — users never interact directly with Game X's currency system.
+
+### Revenue Model
+- When a user bets 1 Gold on my platform, I place an equivalent bet of 1,000 (Game X currency) on Game X.
+- **If the user loses**: I lose 1,000 on Game X but keep 100,000 from the user → **net profit: 99,000**.
+- **If the user wins (e.g., 2x)**: I win 2,000 on Game X but must pay the user 200,000 → **net loss: 198,000**.
+- Over time, due to the house edge built into Game X, **I am statistically profitable**.
+
+## Technical Requirements
+
+### 1. Webview Integration
+- Embed Game X inside my website using an **iframe or webview**.
+- Game X does NOT provide an API, so I must **intercept and read game results** from the webview.
+- Game X may block F12/DevTools in their JS — this must be bypassed since I control the webview environment.
+
+### 2. Game Result Interception (No API Available)
+Since Game X has no API, I need to read game results using these techniques:
+
+#### Primary Method: Network Interception
+- Intercept all HTTP/Fetch/XHR/WebSocket traffic between the webview and Game X's server.
+- Parse responses to extract: `bet_amount`, `win_amount`, `round_id`, `balance_before`, `balance_after`.
+- Implementation: Override `window.fetch`, `XMLHttpRequest.prototype`, and `WebSocket` constructor with wrapper functions that clone and forward responses to my server.
+
+#### Secondary Method: DOM Observation
+- Use `MutationObserver` to watch Game X's UI for balance changes and game result displays.
+- This serves as a backup/validation layer.
+
+#### Failsafe Method: Balance Comparison
+- Record Game X account balance **before** each game session.
+- Record Game X account balance **after** each game session or round.
+- Calculate: `result = balance_after - balance_before`
+- This method is **100% reliable** regardless of missed responses or network issues.
+
+### 3. Inject Script Architecture
+- My website loads a **bridge script before Game X loads** in the webview.
+- This bridge script sets up all interceptors (network, DOM, postMessage listeners).
+- All intercepted data is sent to my backend server **asynchronously** (does not block or slow down the game).
+- The bridge communicates with my server via a secure WebSocket or REST API.
+
+### 4. Backend System
+
+#### Wallet Service
+- Manage two balances per user: `usd_balance` and `gold_balance`.
+- Currency conversion: USD ↔ Gold at the configured ratio (1:100,000).
+- All balance changes must be atomic (database transactions).
+
+#### Game Bridge API
+- `POST /api/game-bridge/result` — Receives intercepted game results from the webview bridge.
+- Validates `round_id` for idempotency (no duplicate processing).
+- Updates user's Gold balance based on game result.
+- Logs the full raw response from Game X for audit/reconciliation.
+
+#### Transaction Engine
+- Log **every** transaction: deposits, withdrawals, USD↔Gold conversions, game bets, game wins.
+- Each transaction records: `user_id`, `type`, `round_id`, `bet_gold`, `win_gold`, `net_gold`, `balance_before`, `balance_after`, `raw_data`, `timestamp`.
+- Support daily reconciliation between my platform's records and Game X account balance.
+
+### 5. Database Schema
+
+**Tables needed:**
+- `users` — User accounts and authentication
+- `user_wallets` — USD and Gold balances per user
+- `transactions` — Complete transaction log (deposits, withdrawals, conversions, game results)
+- `game_sessions` — Track each game session (start time, end time, game_x_balance_before, game_x_balance_after)
+- `reconciliation_reports` — Daily reconciliation between platform totals and Game X actuals
+
+### 6. User Flow
+
+```
+1. User registers & logs into my platform
+2. User deposits USD → usd_balance increases
+3. User converts USD to Gold (rate 1:100,000) → usd_balance decreases, gold_balance increases
+4. User clicks "Play Game X" → 
+   a. My server records Game X account balance (snapshot)
+   b. Webview loads with bridge script injected FIRST
+   c. Game X loads inside webview
+5. User plays Game X normally (no lag, no delay — interceptors run async)
+6. Bridge script intercepts game results → sends to my server
+7. My server:
+   a. Validates the result (idempotency check via round_id)
+   b. Updates user's gold_balance
+   c. Logs the transaction
+8. User sees updated Gold balance on my platform (within ~200-500ms of game result)
+9. User can convert Gold back to USD and withdraw
+```
+
+### 7. Risk Mitigation
+
+| Risk | Solution |
+|------|----------|
+| Game X changes their protocol/UI | Monitoring system that alerts when interceptor patterns fail to match. Contractually require Game X to notify before changes. |
+| Network lag / missed game result | Balance Comparison method as failsafe — compare Game X balance before and after to calculate accurate result. |
+| User attempts to hack JS interceptor | Run critical logic server-side. Validate all results against Game X balance snapshots. Obfuscate client-side code. |
+| Connection drops mid-game | Game X handles the round internally. On reconnect, use Balance Comparison to reconcile. Queue system with retry for pending transactions. |
+| Double-processing a game result | Idempotency key (`round_id`) ensures each result is processed exactly once. |
+
+### 8. Performance Requirements
+- **Zero impact on game UX** — All interception is read-only and async.
+- Interceptor overhead: < 2ms per response.
+- Gold balance update: < 500ms after game result.
+- The user's gaming experience must be **identical** to playing directly on Game X.
+
+## Tech Stack (Suggested)
+- **Frontend**: React/Next.js with iframe/webview for Game X
+- **Backend**: Node.js (Express/Fastify) or Python (FastAPI)
+- **Database**: PostgreSQL
+- **Real-time**: WebSocket for live balance updates
+- **Queue**: Redis/Bull for transaction processing reliability
+
+## Deliverables
+1. **Frontend**: Game lobby page + Webview wrapper with bridge script injection
+2. **Bridge Script**: Network interceptor (Fetch/XHR/WebSocket) + DOM observer + Balance comparison logic
+3. **Backend API**: Wallet service, Game Bridge endpoint, Transaction engine
+4. **Database**: Schema + migrations for all tables
+5. **Admin Dashboard**: View transactions, reconciliation reports, user balances
+6. **Monitoring**: Alert system for interceptor failures
+
+## Important Notes
+- This integration is **legal** — I have a signed contract with Game X.
+- I have a valid **US gaming license**.
+- Game X does not provide an API, so webview interception is the only technical path.
+- All user funds (USD and Gold) are managed entirely on MY platform.
